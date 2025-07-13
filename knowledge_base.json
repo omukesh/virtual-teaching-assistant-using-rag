@@ -1,0 +1,39 @@
+{
+    "Math": [],
+    "Physics": [],
+    "Chemistry": [],
+    "PDF": [
+        {
+            "pdf_filename": "/input/mathsEM.pdf",
+            "content": "Extracted text from the PDF file."
+        },
+        {
+            "pdf_filename": "/input/maths_ncert.pdf",
+            "content": "Extracted text from maths_ncert.pdf"
+        },
+        {
+            "pdf_filename": "/input/science_ncert.pdf",
+            "content": "Extracted text from science_ncert.pdf"
+        }
+    ],
+    "AI & Robotics": [
+        {
+            "Company": "Nala Robotics",
+            "Description": "Nala Robotics is an AI-driven robotics company specializing in autonomous kitchen and foodservice solutions. They develop robotic chefs capable of preparing a variety of cuisines with precision and consistency, using machine learning and computer vision.",
+            "Key Features": [
+                "AI-Powered Cooking Robots – Can prepare different types of food, including burgers, pizza, pasta, and more.",
+                "Fully Autonomous – The robots handle everything from ingredient selection to cooking and plating.",
+                "Customizable Menus – Restaurants can program the robots to prepare specific recipes.",
+                "Hygienic & Consistent – Reduces human contact with food, ensuring cleanliness and quality.",
+                "Multi-Cuisine Support – Can switch between different cooking styles dynamically."
+            ],
+            "Products & Solutions": [
+                "The Nala Chef – A fully automated kitchen system.",
+                "Pizzaiola™ – A robotic pizza-making station.",
+                "Burgers, Wings & More – Specialized robots for fast food preparation.",
+                "Automated Kiosks – Self-operating food kiosks for quick service."
+            ],
+            "Why It Matters": "Nala Robotics is transforming the food industry by addressing labor shortages, improving efficiency, and maintaining consistent food quality. Their solutions are particularly useful for fast food chains, cloud kitchens, and high-demand food production environments."
+        }
+    ]
+}

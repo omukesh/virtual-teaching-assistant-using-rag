@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Tutor Chatbot</title>
+    <style>
+        /* Basic CSS for styling the chatbot */
+        #chat-container { width: 600px; margin: 20px auto; border: 1px solid #ccc; padding: 10px; }
+        #chat-log { height: 300px; overflow-y: scroll; border: 1px solid #ddd; padding: 5px; }
+        #input-area { display: flex; margin-top: 10px; }
+        #input-text { flex-grow: 1; padding: 5px; }
+        #send-button, #voice-button, #upload-button, #clear-button { margin-left: 5px; padding: 5px 10px;}
+        #file-input { display: none; }
+        #pdf-link { display: block; margin-top: 10px; }
+        #error-message { color: red; margin-top: 10px; } /* Error message styling */
+        .loading {
+            border: 5px solid #f3f3f3; /* Light grey */
+            border-top: 5px solid #3498db; /* Blue */
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 2s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .message {
+          margin-bottom: 5px;
+          padding: 5px;
+          border-radius: 5px;
+        }
+
+        .message:nth-child(odd) {
+          background-color: #f0f0f0; /* Light grey for alternating messages */
+        }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="chat-log">
+            <!-- Chat messages will appear here -->
+        </div>
+        <div id="error-message"></div> <!-- Error message area -->
+        <div id="input-area">
+            <input type="text" id="input-text" placeholder="Type your question...">
+            <button id="send-button">Send</button>
+            <button id="voice-button">Voice</button>
+            <button id="upload-button">Upload</button>
+            <button id="clear-button">Clear</button> <!-- Clear Chat Button -->
+            <input type="file" id="file-input" accept=".jpg, .jpeg, .png, .pdf, .docx" multiple>
+        </div>
+         <a id="pdf-link" href="#" style="display: none;"> Download PDF </a>
+        <div id="loading-indicator" style="display:none;" class="loading"></div> <!-- Loading indicator -->
+    </div>
+    <script>
+        // JavaScript code
+        const chatLog = document.getElementById('chat-log');
+        const inputText = document.getElementById('input-text');
+        const sendButton = document.getElementById('send-button');
+        const voiceButton = document.getElementById('voice-button');
+        const uploadButton = document.getElementById('upload-button');
+        const clearButton = document.getElementById('clear-button'); // Clear button
+        const fileInput = document.getElementById('file-input');
+        const pdfLink = document.getElementById('pdf-link');
+        const errorMessage = document.getElementById('error-message'); // Get error message element
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        let recognition = null; // Initialize speech recognition
+        let isListening = false;
+
+        // Function to add a message to chat window
+        function addMessage(message, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message'); // Add a class for styling
+
+            if (message.includes("<table")) {
+                messageDiv.innerHTML = (isUser ? 'You: ' : 'Bot: ') + message;
+            } else if (message.includes("![")) {
+                // Handle image display (Markdown-style)
+                const imageRegex = /!\[(.*?)\]\((.*?)\)/g;
+                const replacedMessage = message.replace(imageRegex, (match, altText, imageUrl) => {
+                    return `<img src="${imageUrl}" alt="${altText}" style="max-width: 300px;">`;  // Adjust styling as needed
+                });
+                messageDiv.innerHTML = (isUser ? 'You: ' : 'Bot: ') + replacedMessage;
+            } else {
+                messageDiv.textContent = (isUser ? 'You: ' : 'Bot: ') + message;
+            }
+
+            chatLog.appendChild(messageDiv);
+            chatLog.scrollTop = chatLog.scrollHeight;
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+        }
+
+         function clearError() {
+            errorMessage.textContent = "";
+        }
+
+        function setLoading(isLoading) {
+            if (isLoading) {
+                loadingIndicator.style.display = "inline-block";
+            } else {
+                loadingIndicator.style.display = "none";
+            }
+        }
+
+        // Function to handle text input
+        async function sendTextQuery() {
+            clearError();
+            const query = inputText.value.trim();
+             if (!query) return;
+             addMessage(query, true);
+             inputText.value = "";
+             setLoading(true);
+
+            try{
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json'},
+                    body: JSON.stringify({ query: query, input_type: "text"})
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log("Text Response Data: ", data); // Console log for debugging
+
+                addMessage(data.answer, false);
+                if (data.pdf_file) {
+                    pdfLink.href = `/download/${data.pdf_file}`
+                    pdfLink.style.display = "block";
+                } else {
+                    pdfLink.style.display = "none"
+                }
+            }
+            catch(error){
+                console.error("Error sending query:", error);
+                showError("Error sending query.  Please check console for details.");
+                addMessage("Error sending query", false);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+      // Function to handle voice input
+        function startVoiceRecognition() {
+            clearError();
+            if ('webkitSpeechRecognition' in window) {
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.lang = 'en-US';
+                recognition.onresult = function(event) {
+                    const query = event.results[0][0].transcript;
+                     addMessage(query, true);
+
+                     sendData(query, "voice");
+
+                };
+                recognition.onerror = function(event) {
+                    showError('Error during voice input');
+                    addMessage('Error during voice input', false);
+                };
+                 recognition.onstart = function(event) {
+                    isListening = true;
+                    addMessage("Listening...", false);
+                };
+                 recognition.onend = function(event) {
+                    isListening = false;
+                    addMessage("Stopped Listening", false);
+                };
+                recognition.start();
+
+            }
+             else {
+                showError('Web Speech API not supported');
+                addMessage('Web Speech API not supported', false)
+            }
+        }
+
+     // Function to start listening if keyword is detected
+        function startKeywordListening() {
+             if ('webkitSpeechRecognition' in window) {
+                 recognition = new webkitSpeechRecognition();
+                recognition.continuous = true;
+                recognition.lang = 'en-US';
+                 recognition.onresult = function(event) {
+                    const spokenWord = event.results[event.results.length - 1][0].transcript.toLowerCase();
+                    if(spokenWord.includes("hey best brain") && !isListening){
+                        startVoiceRecognition()
+                    }
+                 }
+                recognition.onerror = function(event) {
+                     showError('Error during keyword detection');
+                     addMessage('Error during keyword detection', false);
+                }
+                recognition.start();
+            }
+             else{
+                showError('Web Speech API not supported');
+                addMessage('Web Speech API not supported', false)
+            }
+
+        }
+
+        // Function to handle file uploads
+        async function handleFileUpload() {
+            clearError();
+            const file = fileInput.files[0];
+             if (!file) return;
+
+             const formData = new FormData();
+             formData.append('file', file);
+
+             addMessage(`File ${file.name} Uploaded`, true);
+             setLoading(true);
+            try{
+                const response = await fetch('/process', {
+                   method: 'POST',
+                    body: formData,
+
+                    });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log("Upload Response Data: ", data); // Console log for debugging
+
+                 addMessage(data.answer, false);
+                   if (data.pdf_file) {
+                    pdfLink.href = `/download/${data.pdf_file}`
+                     pdfLink.style.display = "block";
+                    }
+                     else {
+                    pdfLink.style.display = "none"
+                }
+            }
+             catch(error) {
+               console.error("Error uploading file:", error);
+               showError("Error uploading file.  Please check console for details.");
+                 addMessage("Error uploading file", false);
+            } finally{
+                setLoading(false);
+            }
+           fileInput.value = "";
+        }
+
+     // Function to send data (text/voice) to the backend
+        async function sendData(query, inputType) {
+            clearError();
+            setLoading(true);
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query, input_type: inputType })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log("Voice Response Data: ", data);  // Added console log for response data
+                addMessage(data.answer, false);
+
+                 if (data.pdf_file) {
+                     pdfLink.href = `/download/${data.pdf_file}`
+                     pdfLink.style.display = "block";
+                    }
+                     else {
+                    pdfLink.style.display = "none"
+                }
+
+            } catch (error) {
+                console.error("Error sending data:", error);
+                showError("Error sending data. Please check the console for details.");
+                  addMessage("Error sending data", false);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Function to clear the chat log
+        function clearChat() {
+            chatLog.innerHTML = ''; // Clear all messages from the chat log
+        }
+
+        // Event listeners for buttons
+         sendButton.addEventListener('click', sendTextQuery);
+         voiceButton.addEventListener('click', startVoiceRecognition);
+        uploadButton.addEventListener('click', () => fileInput.click()); // Simulate click to show file upload
+        clearButton.addEventListener('click', clearChat); // Clear chat
+        fileInput.addEventListener('change', handleFileUpload);
+
+         startKeywordListening() // start keyword listening initially
+    </script>
+</body>
+</html>
